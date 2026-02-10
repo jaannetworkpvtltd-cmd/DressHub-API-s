@@ -94,9 +94,10 @@ function formatProductWithCategory($product, $conn = null) {
         ] : null
     ];
 
-    // Get images for this product if connection is available
+    // Get images, variants, and bulk prices if connection is available
     if ($conn !== null) {
         try {
+            // Get images
             $img_query = "SELECT id, product_id, image_url, is_primary FROM product_images WHERE product_id = :product_id ORDER BY is_primary DESC";
             $img_stmt = $conn->prepare($img_query);
             $img_stmt->bindParam(':product_id', $product['id'], PDO::PARAM_INT);
@@ -111,8 +112,47 @@ function formatProductWithCategory($product, $conn = null) {
                     'is_primary' => (int)$image['is_primary']
                 ];
             }
+
+            // Get variants
+            $var_query = "SELECT id, product_id, size, color, stock, created_at FROM product_variants WHERE product_id = :product_id ORDER BY id";
+            $var_stmt = $conn->prepare($var_query);
+            $var_stmt->bindParam(':product_id', $product['id'], PDO::PARAM_INT);
+            $var_stmt->execute();
+            $variants = $var_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $formatted['variants'] = [];
+            foreach ($variants as $variant) {
+                $formatted['variants'][] = [
+                    'id' => (int)$variant['id'],
+                    'size' => $variant['size'],
+                    'color' => $variant['color'],
+                    'stock' => (int)$variant['stock'],
+                    'created_at' => $variant['created_at']
+                ];
+            }
+
+            // Get bulk prices
+            $bulk_query = "SELECT id, product_id, min_quantity, bulk_price, created_at FROM product_bulk_prices WHERE product_id = :product_id ORDER BY min_quantity";
+            $bulk_stmt = $conn->prepare($bulk_query);
+            $bulk_stmt->bindParam(':product_id', $product['id'], PDO::PARAM_INT);
+            $bulk_stmt->execute();
+            $bulk_prices = $bulk_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $formatted['bulk_prices'] = [];
+            foreach ($bulk_prices as $bp) {
+                $formatted['bulk_prices'][] = [
+                    'id' => (int)$bp['id'],
+                    'min_quantity' => (int)$bp['min_quantity'],
+                    'bulk_price' => $bp['bulk_price'],
+                    'created_at' => $bp['created_at']
+                ];
+            }
+
         } catch (Exception $e) {
+            error_log("Error loading product details: " . $e->getMessage());
             $formatted['images'] = [];
+            $formatted['variants'] = [];
+            $formatted['bulk_prices'] = [];
         }
     }
 
@@ -227,13 +267,73 @@ function createProduct($conn, $input) {
                 }
             }
 
+            // Handle variants if provided
+            $variants_created = 0;
+            $variants = isset($input['variants']) ? $input['variants'] : null;
+            
+            // If variants is a string (from form-data), parse it as JSON
+            if (is_string($variants)) {
+                $variants = json_decode($variants, true);
+            }
+            
+            if (isset($variants) && is_array($variants)) {
+                foreach ($variants as $variant) {
+                    $v_size = $variant['size'] ?? null;
+                    $v_color = $variant['color'] ?? null;
+                    $v_stock = (int)($variant['stock'] ?? 0);
+                    
+                    $var_query = "INSERT INTO product_variants (product_id, size, color, stock) 
+                                  VALUES (:product_id, :size, :color, :stock)";
+                    $var_stmt = $conn->prepare($var_query);
+                    $var_stmt->bindParam(':product_id', $product_id, PDO::PARAM_INT);
+                    $var_stmt->bindParam(':size', $v_size, PDO::PARAM_STR);
+                    $var_stmt->bindParam(':color', $v_color, PDO::PARAM_STR);
+                    $var_stmt->bindParam(':stock', $v_stock, PDO::PARAM_INT);
+                    
+                    if ($var_stmt->execute()) {
+                        $variants_created++;
+                    }
+                }
+            }
+
+            // Handle bulk prices if provided
+            $bulk_prices_created = 0;
+            $bulk_prices = isset($input['bulk_prices']) ? $input['bulk_prices'] : null;
+            
+            // If bulk_prices is a string (from form-data), parse it as JSON
+            if (is_string($bulk_prices)) {
+                $bulk_prices = json_decode($bulk_prices, true);
+            }
+            
+            if (isset($bulk_prices) && is_array($bulk_prices)) {
+                foreach ($bulk_prices as $bulk) {
+                    $b_min_qty = (int)($bulk['min_quantity'] ?? 0);
+                    $b_price = $bulk['bulk_price'] ?? null;
+                    
+                    if ($b_min_qty && $b_price) {
+                        $bulk_query = "INSERT INTO product_bulk_prices (product_id, min_quantity, bulk_price) 
+                                       VALUES (:product_id, :min_quantity, :bulk_price)";
+                        $bulk_stmt = $conn->prepare($bulk_query);
+                        $bulk_stmt->bindParam(':product_id', $product_id, PDO::PARAM_INT);
+                        $bulk_stmt->bindParam(':min_quantity', $b_min_qty, PDO::PARAM_INT);
+                        $bulk_stmt->bindParam(':bulk_price', $b_price, PDO::PARAM_STR);
+                        
+                        if ($bulk_stmt->execute()) {
+                            $bulk_prices_created++;
+                        }
+                    }
+                }
+            }
+
             http_response_code(201);
             echo json_encode([
                 'status' => 'success',
                 'message' => 'Product created successfully',
                 'data' => [
                     'id' => $product_id,
-                    'image_url' => $image_url
+                    'image_url' => $image_url,
+                    'variants_created' => $variants_created,
+                    'bulk_prices_created' => $bulk_prices_created
                 ]
             ]);
         } else {
