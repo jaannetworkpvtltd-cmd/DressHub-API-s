@@ -262,12 +262,148 @@ Based on your current codebase, here are all the APIs that exist and their respo
 
 ---
 
-## Previous: Products By Category API (Removed)
+## 6. **Get Profile API**
+**Endpoint:** `GET /api_profile.php`
+
+**Headers:**
+- **Authorization:** `Bearer YOUR_JWT_TOKEN` (Required)
+- `Content-Type: application/json`
+
+**Response (200):**
+```json
+{
+  "message": "Success",
+  "data": {
+    "id": 1,
+    "user_id": 1,
+    "full_name": "John Doe",
+    "phone": "1234567890",
+    "avatar_url": "http://localhost/DressHub%20APIs/images/avatars/avatar_user1.jpg",
+    "is_active": 1,
+    "created_at": "2024-01-15 10:30:00"
+  }
+}
+```
+
+**Error Response (401 - Invalid Token):**
+```json
+{
+  "message": "Invalid or expired token"
+}
+```
+
+**Error Response (500):**
+```json
+{
+  "message": "Error retrieving profile: [error details]"
+}
+```
+
+---
+
+## 7. **Create/Update Profile API**
+**Endpoint:** `POST /api_profile.php`
+
+**Headers:**
+- **Authorization:** `Bearer YOUR_JWT_TOKEN` (Required)
+- `Content-Type: application/json`
+
+**Request Body (JSON):**
+```json
+{
+  "full_name": "John Doe",
+  "phone": "1234567890"
+}
+```
+
+**Response (201 - New Profile Created):**
+```json
+{
+  "message": "Profile created successfully",
+  "data": {
+    "id": 1,
+    "user_id": 1,
+    "full_name": "John Doe",
+    "phone": "1234567890",
+    "avatar_url": null,
+    "is_active": 1,
+    "created_at": "2024-01-15 10:30:00"
+  }
+}
+```
+
+**Error Response (401 - Invalid Token):**
+```json
+{
+  "message": "Invalid or expired token"
+}
+```
+
+**Error Response (500):**
+```json
+{
+  "message": "Error creating profile: [error details]"
+}
+```
+
+---
+
+## 8. **Update Profile API**
+**Endpoint:** `PUT /api_profile.php`
+
+**Headers:**
+- **Authorization:** `Bearer YOUR_JWT_TOKEN` (Required)
+- `Content-Type: application/json`
+
+**Request Body (JSON):**
+```json
+{
+  "full_name": "Jane Doe",
+  "phone": "0987654321"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "Profile updated successfully",
+  "data": {
+    "id": 1,
+    "user_id": 1,
+    "full_name": "Jane Doe",
+    "phone": "0987654321",
+    "avatar_url": "http://localhost/DressHub%20APIs/images/avatars/avatar_user1.jpg",
+    "is_active": 1,
+    "created_at": "2024-01-15 10:30:00"
+  }
+}
+```
+
+**Error Response (401 - Invalid Token):**
+```json
+{
+  "message": "Invalid or expired token"
+}
+```
+
+**Error Response (500):**
+```json
+{
+  "message": "Error updating profile: [error details]"
+}
+```
+
+---
+
+## Products by Category API (Removed)
 
 ## Summary Table
 
 | Feature | Endpoint | Method | Auth Required | Status |
 |---------|----------|--------|---------------|--------|
+| Get Profile | `/api_profile.php` | GET | Yes (JWT) | ✅ Implemented |
+| Create Profile | `/api_profile.php` | POST | Yes (JWT) | ✅ Implemented |
+| Update Profile | `/api_profile.php` | PUT | Yes (JWT) | ✅ Implemented |
 | Get All Products | `/api_products.php` | GET | No | ✅ Implemented |
 | Get Product By ID | `/api_products.php/ID` | GET | No | ✅ Implemented |
 | Get Products By Category | `/api_products.php?category_id=ID` | GET | No | ✅ Implemented |
@@ -284,18 +420,27 @@ Based on your current codebase, here are all the APIs that exist and their respo
 
 ## Notes
 
-1. **Product Responses Include:**
+1. **Profile API:**
+   - Requires JWT token in Authorization header: `Bearer YOUR_JWT_TOKEN`
+   - Token is obtained from `/login.php` endpoint
+   - Token expires in 24 hours
+   - GET returns user's profile data
+   - POST creates new profile or updates existing
+   - PUT updates profile fields (full_name, phone)
+
+2. **Product Responses Include:**
    - Product details (id, name, description, price, is_active, created_at)
    - Category information (nested object)
    - Images array
    - Variants array
    - Bulk prices array
 
-2. **Authentication:**
-   - Products and Categories endpoints don't require JWT authentication
-   - Profile API requires JWT token in Authorization header
+3. **Authentication:**
+   - Profile endpoints require JWT token in Authorization header
+   - Products and Categories endpoints don't require authentication
+   - Get JWT token from login: `POST /login.php`
 
-3. **Products By Category:**
+4. **Products By Category:**
    - Use query parameter: `/api_products.php?category_id=1`
    - Returns only products belonging to that category
    - Includes validation - returns 404 if category doesn't exist
