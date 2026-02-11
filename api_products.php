@@ -40,11 +40,16 @@ $product_id = isset($segments[count($segments) - 1]) && is_numeric($segments[cou
 // Get input data
 $input = json_decode(file_get_contents("php://input"), true);
 
+// Get query parameters
+$category_id = isset($_GET['category_id']) ? $_GET['category_id'] : null;
+
 // Route handling
 switch ($request_method) {
     case 'GET':
         if ($product_id) {
             getProductById($conn, $product_id);
+        } else if ($category_id) {
+            getProductsByCategory($conn, $category_id);
         } else {
             getAllProducts($conn);
         }
@@ -183,6 +188,52 @@ function getAllProducts($conn) {
             'message' => 'Products retrieved successfully',
             'data' => $formattedProducts,
             'count' => count($formattedProducts)
+        ]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'Error retrieving products: ' . $e->getMessage()]);
+    }
+}
+
+// GET products by category
+function getProductsByCategory($conn, $category_id) {
+    try {
+        // Validate category exists
+        $cat_check = "SELECT id FROM categories WHERE id = :category_id";
+        $cat_stmt = $conn->prepare($cat_check);
+        $cat_stmt->bindParam(':category_id', $category_id, PDO::PARAM_INT);
+        $cat_stmt->execute();
+
+        if ($cat_stmt->rowCount() === 0) {
+            http_response_code(404);
+            echo json_encode(['status' => 'error', 'message' => 'Category not found']);
+            return;
+        }
+
+        $query = "SELECT p.id, p.name, p.description, p.price, p.is_active, p.created_at,
+                  c.id as category_id, c.name as category_name, c.parent_id, c.is_active as category_is_active
+                  FROM products p
+                  LEFT JOIN categories c ON p.category_id = c.id
+                  WHERE p.category_id = :category_id
+                  ORDER BY p.created_at DESC";
+        
+        $stmt = $conn->prepare($query);
+        $stmt->bindParam(':category_id', $category_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $formattedProducts = [];
+        foreach ($products as $product) {
+            $formattedProducts[] = formatProductWithCategory($product, $conn);
+        }
+
+        http_response_code(200);
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'Products retrieved successfully',
+            'data' => $formattedProducts,
+            'count' => count($formattedProducts),
+            'category_id' => (int)$category_id
         ]);
     } catch (Exception $e) {
         http_response_code(500);
