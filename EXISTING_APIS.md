@@ -66,7 +66,7 @@ Based on your current codebase, here are all the APIs that exist and their respo
 ---
 
 ## 2. **Product By ID API**
-**Endpoint:** `GET /api_products.php/1` (where 1 is the product ID)
+**Endpoint:** `GET /api_products.php?product_id=1` (where 1 is the product ID)
 
 **Headers:**
 - No authentication required
@@ -405,11 +405,11 @@ Based on your current codebase, here are all the APIs that exist and their respo
 | Create Profile | `/api_profile.php` | POST | Yes (JWT) | ✅ Implemented |
 | Update Profile | `/api_profile.php` | PUT | Yes (JWT) | ✅ Implemented |
 | Get All Products | `/api_products.php` | GET | No | ✅ Implemented |
-| Get Product By ID | `/api_products.php/ID` | GET | No | ✅ Implemented |
+| Get Product By ID | `/api_products.php?product_id=ID` | GET | No | ✅ Implemented |
 | Get Products By Category | `/api_products.php?category_id=ID` | GET | No | ✅ Implemented |
 | Create Product | `/api_products.php` | POST | No | ✅ Implemented |
-| Update Product | `/api_products.php/ID` | PUT | No | ✅ Implemented |
-| Delete Product | `/api_products.php/ID` | DELETE | No | ✅ Implemented |
+| Update Product | `/api_products.php?product_id=ID` | PUT | No | ✅ Implemented |
+| Delete Product | `/api_products.php?product_id=ID` | DELETE | No | ✅ Implemented |
 | Get All Categories | `/categories.php` | GET | No | ✅ Implemented |
 | Get Category By ID | `/categories.php/ID` | GET | No | ✅ Implemented |
 | Create Category | `/categories.php` | POST | No | ✅ Implemented |

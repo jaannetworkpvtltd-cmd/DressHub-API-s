@@ -40,8 +40,14 @@ $product_id = isset($segments[count($segments) - 1]) && is_numeric($segments[cou
 // Get input data
 $input = json_decode(file_get_contents("php://input"), true);
 
-// Get query parameters
+// Get query parameters - check both path and query string for product_id
 $category_id = isset($_GET['category_id']) ? $_GET['category_id'] : null;
+$product_id_query = isset($_GET['product_id']) ? $_GET['product_id'] : null;
+
+// If product_id not found in path, check query parameter
+if (!$product_id && $product_id_query) {
+    $product_id = $product_id_query;
+}
 
 // Route handling
 switch ($request_method) {
