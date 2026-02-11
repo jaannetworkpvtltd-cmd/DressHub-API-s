@@ -70,51 +70,25 @@ try {
         echo json_encode($response);
     }
     elseif ($method === 'POST' && preg_match('/\/api_profile\.php$/', $request_uri)) {
-        // Handle form-data and JSON requests
-        $content_type = $_SERVER['CONTENT_TYPE'] ?? '';
+        // Create or Update Profile - JSON only
+        $input = json_decode(file_get_contents('php://input'), true);
         
-        if (strpos($content_type, 'application/json') !== false) {
-            // JSON request
-            $input = json_decode(file_get_contents('php://input'), true);
-            $data = [
-                'user_id' => $user_id,
-                'full_name' => $input['full_name'] ?? null,
-                'phone' => $input['phone'] ?? null,
-                'is_active' => $input['is_active'] ?? 1
-            ];
-        } else {
-            // Form-data request
-            $data = [
-                'user_id' => $user_id,
-                'full_name' => $_POST['full_name'] ?? null,
-                'phone' => $_POST['phone'] ?? null,
-                'is_active' => $_POST['is_active'] ?? 1
-            ];
-        }
+        $data = [
+            'user_id' => $user_id,
+            'full_name' => isset($input['full_name']) && !empty($input['full_name']) ? $input['full_name'] : null,
+            'phone' => isset($input['phone']) && !empty($input['phone']) ? $input['phone'] : null,
+            'is_active' => isset($input['is_active']) ? (int)$input['is_active'] : 1
+        ];
 
         // Check if profile exists
         $existing = $controller->getProfile($user_id);
         
-        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-            // Update profile with avatar upload
-            if ($existing['status'] === 'success' && isset($existing['data'])) {
-                // Update existing profile first
-                $controller->updateProfile($user_id, $data);
-            } else {
-                // Create new profile first
-                $controller->createProfile($data);
-            }
-            // Then upload avatar
-            $response = $controller->uploadAvatar($user_id);
+        if ($existing['status'] === 'success' && isset($existing['data'])) {
+            // Update existing profile
+            $response = $controller->updateProfile($user_id, $data);
         } else {
-            // Only update/create profile without avatar
-            if ($existing['status'] === 'success' && isset($existing['data'])) {
-                // Update existing profile
-                $response = $controller->updateProfile($user_id, $data);
-            } else {
-                // Create new profile
-                $response = $controller->createProfile($data);
-            }
+            // Create new profile
+            $response = $controller->createProfile($data);
         }
         echo json_encode($response);
     }
