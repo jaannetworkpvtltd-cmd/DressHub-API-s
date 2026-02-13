@@ -104,18 +104,98 @@ switch ($_SERVER['REQUEST_METHOD']) {
             }
             $result = $cartItemController->getCartItems($params);
         } else {
-            // CART - GET
+            // CART - GET (with full details including items)
             $params = [];
             if ($id) {
                 $params['id'] = $id;
+                // Get single cart with full details
+                $cart = $cartController->getCarts($params);
+                
+                if ($cart['status'] && !empty($cart['data'])) {
+                    $cart_data = $cart['data'][0];
+                    $cart_id = $cart_data['id'];
+                    
+                    // Get all items for this cart
+                    $items_result = $cartItemController->getCartItems(['cart_id' => $cart_id]);
+                    $items = $items_result['data'] ?? [];
+                    
+                    // Calculate totals
+                    $total_items = 0;
+                    $total_price = 0;
+                    
+                    foreach ($items as $item) {
+                        $total_items += (int)$item['quantity'];
+                        $total_price += (float)$item['quantity'] * (float)$item['applied_price'];
+                    }
+                    
+                    // Return combined response
+                    http_response_code(200);
+                    echo json_encode([
+                        'status' => true,
+                        'code' => 200,
+                        'data' => [
+                            'cart' => $cart_data,
+                            'items' => $items,
+                            'total_items' => $total_items,
+                            'total_price' => number_format($total_price, 2, '.', '')
+                        ],
+                        'message' => 'Cart with items retrieved successfully'
+                    ]);
+                    exit();
+                } else {
+                    http_response_code(404);
+                    echo json_encode(['status' => false, 'code' => 404, 'message' => 'Cart not found']);
+                    exit();
+                }
             } else if ($user_id) {
                 $params['user_id'] = $user_id;
             }
-            $result = $cartController->getCarts($params);
+            
+            // Get carts list
+            $cart_result = $cartController->getCarts($params);
+            
+            if ($cart_result['status'] && !empty($cart_result['data'])) {
+                // Enhance each cart with items and totals
+                $carts_with_items = [];
+                
+                foreach ($cart_result['data'] as $cart_data) {
+                    $cart_id = $cart_data['id'];
+                    
+                    // Get items for this cart
+                    $items_result = $cartItemController->getCartItems(['cart_id' => $cart_id]);
+                    $items = $items_result['data'] ?? [];
+                    
+                    // Calculate totals
+                    $total_items = 0;
+                    $total_price = 0;
+                    
+                    foreach ($items as $item) {
+                        $total_items += (int)$item['quantity'];
+                        $total_price += (float)$item['quantity'] * (float)$item['applied_price'];
+                    }
+                    
+                    $carts_with_items[] = [
+                        'cart' => $cart_data,
+                        'items' => $items,
+                        'total_items' => $total_items,
+                        'total_price' => number_format($total_price, 2, '.', '')
+                    ];
+                }
+                
+                http_response_code(200);
+                echo json_encode([
+                    'status' => true,
+                    'code' => 200,
+                    'data' => $carts_with_items,
+                    'message' => 'Carts with items retrieved successfully'
+                ]);
+                exit();
+            }
+            
+            // Return standard response if no enhancement needed
+            http_response_code($cart_result['code']);
+            echo json_encode($cart_result);
         }
-        
-        http_response_code($result['code']);
-        echo json_encode($result);
         break;
 
     case 'POST':
@@ -221,13 +301,44 @@ switch ($_SERVER['REQUEST_METHOD']) {
             }
             $result = $cartItemController->updateCartItem($id, $input);
         } else {
-            // CART - PUT
+            // CART - PUT (with full details)
             if (!$id) {
                 http_response_code(400);
                 echo json_encode(['status' => false, 'message' => 'Cart ID is required for update']);
                 exit();
             }
             $result = $cartController->updateCart($id, $input);
+            
+            if ($result['status']) {
+                // Get updated cart with full details
+                $cart_data = $result['data'];
+                $items_result = $cartItemController->getCartItems(['cart_id' => $id]);
+                $items = $items_result['data'] ?? [];
+                
+                // Calculate totals
+                $total_items = 0;
+                $total_price = 0;
+                
+                foreach ($items as $item) {
+                    $total_items += (int)$item['quantity'];
+                    $total_price += (float)$item['quantity'] * (float)$item['applied_price'];
+                }
+                
+                // Return combined response
+                http_response_code(200);
+                echo json_encode([
+                    'status' => true,
+                    'code' => 200,
+                    'data' => [
+                        'cart' => $cart_data,
+                        'items' => $items,
+                        'total_items' => $total_items,
+                        'total_price' => number_format($total_price, 2, '.', '')
+                    ],
+                    'message' => 'Cart updated successfully'
+                ]);
+                exit();
+            }
         }
         
         http_response_code($result['code']);
@@ -246,13 +357,51 @@ switch ($_SERVER['REQUEST_METHOD']) {
             }
             $result = $cartItemController->removeCartItem($id);
         } else {
-            // CART - DELETE
+            // CART - DELETE (with full details before deletion)
             if (!$id) {
                 http_response_code(400);
                 echo json_encode(['status' => false, 'message' => 'Cart ID is required for delete']);
                 exit();
             }
+            
+            // First get cart data before deletion
+            $cart_before = $cartController->getCarts(['id' => $id]);
+            if (!$cart_before['status']) {
+                http_response_code(404);
+                echo json_encode(['status' => false, 'code' => 404, 'message' => 'Cart not found']);
+                exit();
+            }
+            
+            $items_before = $cartItemController->getCartItems(['cart_id' => $id])['data'] ?? [];
+            
+            // Now delete
             $result = $cartController->deleteCart($id);
+            
+            if ($result['status']) {
+                // Calculate totals from deleted cart
+                $total_items = 0;
+                $total_price = 0;
+                
+                foreach ($items_before as $item) {
+                    $total_items += (int)$item['quantity'];
+                    $total_price += (float)$item['quantity'] * (float)$item['applied_price'];
+                }
+                
+                // Return deleted cart details
+                http_response_code(200);
+                echo json_encode([
+                    'status' => true,
+                    'code' => 200,
+                    'data' => [
+                        'cart' => $cart_before['data'][0],
+                        'items' => $items_before,
+                        'total_items' => $total_items,
+                        'total_price' => number_format($total_price, 2, '.', '')
+                    ],
+                    'message' => 'Cart deleted successfully'
+                ]);
+                exit();
+            }
         }
         
         http_response_code($result['code']);

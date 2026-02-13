@@ -17,11 +17,13 @@ try {
         
         $user_id = $input['user_id'] ?? 1;
         $username = $input['username'] ?? 'testuser';
+        $role = $input['role'] ?? 'customer';
         $exp_hours = $input['exp_hours'] ?? 24;
         
     } else {
         $user_id = $_GET['user_id'] ?? 1;
         $username = $_GET['username'] ?? 'testuser';
+        $role = $_GET['role'] ?? 'customer';
         $exp_hours = $_GET['exp_hours'] ?? 24;
     }
     
@@ -30,6 +32,7 @@ try {
     $payload = [
         'user_id' => (int)$user_id,
         'username' => $username,
+        'role' => $role,
         'iat' => time(),
         'exp' => time() + ($exp_hours * 3600)
     ];
@@ -45,6 +48,7 @@ try {
         'expires_in' => ($exp_hours * 3600),
         'user_id' => (int)$user_id,
         'username' => $username,
+        'role' => $role,
         'message' => 'Token generated successfully'
     ]);
     

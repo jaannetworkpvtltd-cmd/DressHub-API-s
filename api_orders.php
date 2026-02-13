@@ -95,10 +95,23 @@ function verifyToken() {
     return $decoded;
 }
 
+// Check if user is admin
+function isAdmin($decoded) {
+    $role = isset($decoded['role']) ? strtolower($decoded['role']) : '';
+    return $role === 'admin';
+}
+
+// Get user ID from decoded token
+function getUserId($decoded) {
+    return isset($decoded['user_id']) ? $decoded['user_id'] : null;
+}
+
 // Route handling
 switch ($request_method) {
     case 'GET':
-        verifyToken();
+        $decoded = verifyToken();
+        $current_user_id = getUserId($decoded);
+        $is_admin = isAdmin($decoded);
         
         if ($resource_type === 'items') {
             // ORDER ITEMS - GET
@@ -110,13 +123,38 @@ switch ($request_method) {
             }
             $result = $orderItemController->getOrderItems($params);
         } else {
-            // ORDER - GET
+            // ORDER - GET (with role-based access)
             $params = [];
+            
             if ($id) {
+                // Get specific order
+                $order_info = $orderController->getOrders(['id' => $id]);
+                
+                // Check authorization - customer can only see their own, admin can see all
+                if (!$is_admin && isset($order_info['data'][0]) && $order_info['data'][0]['user_id'] != $current_user_id) {
+                    http_response_code(403);
+                    echo json_encode(['status' => false, 'message' => 'Not authorized to view this order']);
+                    exit();
+                }
                 $params['id'] = $id;
             } else if ($user_id) {
+                // Get orders by specific user
+                // Customer can only view their own orders
+                if (!$is_admin && $user_id != $current_user_id) {
+                    http_response_code(403);
+                    echo json_encode(['status' => false, 'message' => 'Not authorized to view other users orders']);
+                    exit();
+                }
                 $params['user_id'] = $user_id;
+            } else {
+                // Get all orders or customer's own orders
+                if (!$is_admin) {
+                    // Customer - show only their orders
+                    $params['user_id'] = $current_user_id;
+                }
+                // Admin - shows all orders (no filter)
             }
+            
             $result = $orderController->getOrders($params);
         }
         
@@ -125,18 +163,32 @@ switch ($request_method) {
         break;
 
     case 'POST':
-        verifyToken();
+        $decoded = verifyToken();
+        $current_user_id = getUserId($decoded);
+        $is_admin = isAdmin($decoded);
         
         // Check if this is a combined order + items creation (items array present)
         if (isset($input['items']) && is_array($input['items']) && $resource_type === 'items') {
             // CREATE ORDER WITH ITEMS IN ONE REQUEST
             try {
+                // Customer can only create for themselves
+                if (!$is_admin && isset($input['user_id']) && $input['user_id'] != $current_user_id) {
+                    http_response_code(403);
+                    echo json_encode(['status' => false, 'message' => 'Customers can only create orders for themselves']);
+                    exit();
+                }
+                
+                // Set user_id if not provided
+                if (!isset($input['user_id'])) {
+                    $input['user_id'] = $current_user_id;
+                }
+                
                 // Start transaction
                 $conn->beginTransaction();
                 
                 // Create the order
                 $order_data = [
-                    'user_id' => $input['user_id'] ?? null,
+                    'user_id' => $input['user_id'],
                     'total_amount' => $input['total_amount'] ?? 0,
                     'note' => $input['note'] ?? null
                 ];
@@ -220,6 +272,18 @@ switch ($request_method) {
             echo json_encode($result);
         } else {
             // ORDER - POST (create order only)
+            // Customer can only create for themselves
+            if (!$is_admin && isset($input['user_id']) && $input['user_id'] != $current_user_id) {
+                http_response_code(403);
+                echo json_encode(['status' => false, 'message' => 'Customers can only create orders for themselves']);
+                exit();
+            }
+            
+            // Set user_id if not provided
+            if (!isset($input['user_id'])) {
+                $input['user_id'] = $current_user_id;
+            }
+            
             $result = $orderController->createOrder($input);
             http_response_code($result['code']);
             echo json_encode($result);
@@ -227,7 +291,9 @@ switch ($request_method) {
         break;
 
     case 'PUT':
-        verifyToken();
+        $decoded = verifyToken();
+        $current_user_id = getUserId($decoded);
+        $is_admin = isAdmin($decoded);
         
         if ($resource_type === 'items') {
             // ORDER ITEMS - PUT
@@ -240,7 +306,13 @@ switch ($request_method) {
                 echo json_encode(['status' => false, 'message' => 'Item ID is required for update']);
             }
         } else {
-            // ORDER - PUT
+            // ORDER - PUT (only admin can update orders)
+            if (!$is_admin) {
+                http_response_code(403);
+                echo json_encode(['status' => false, 'message' => 'Only admins can update orders']);
+                exit();
+            }
+            
             if ($id) {
                 $result = $orderController->updateOrder($id, $input);
                 http_response_code($result['code']);
@@ -253,7 +325,9 @@ switch ($request_method) {
         break;
 
     case 'DELETE':
-        verifyToken();
+        $decoded = verifyToken();
+        $current_user_id = getUserId($decoded);
+        $is_admin = isAdmin($decoded);
         
         if ($resource_type === 'items') {
             // ORDER ITEMS - DELETE
@@ -266,8 +340,26 @@ switch ($request_method) {
                 echo json_encode(['status' => false, 'message' => 'Item ID is required for delete']);
             }
         } else {
-            // ORDER - DELETE
+            // ORDER - DELETE (customer can delete own, admin can delete any)
             if ($id) {
+                // Get order details to check ownership
+                $order_check = $orderController->getOrders(['id' => $id]);
+                
+                if (!$order_check['status'] || empty($order_check['data'])) {
+                    http_response_code(404);
+                    echo json_encode(['status' => false, 'message' => 'Order not found']);
+                    exit();
+                }
+                
+                $order_owner_id = $order_check['data'][0]['user_id'];
+                
+                // Check authorization - customer can only delete own orders, admin can delete any
+                if (!$is_admin && $order_owner_id != $current_user_id) {
+                    http_response_code(403);
+                    echo json_encode(['status' => false, 'message' => 'Not authorized to delete this order']);
+                    exit();
+                }
+                
                 $result = $orderController->deleteOrder($id);
                 http_response_code($result['code']);
                 echo json_encode($result);
