@@ -652,23 +652,34 @@ function uploadProductImageFile($product_id, $file, $is_primary = false, $conn =
     $images_folder = __DIR__ . '/images/products/';
     
     try {
-        // Ensure folder exists and is writable
+        // Ensure folder exists with proper permissions
+        @mkdir(__DIR__ . '/images', 0777, true); // Ensure parent exists
+        error_log("DEBUG: Creating images folder at: $images_folder");
+        
         if (!is_dir($images_folder)) {
-            if (!mkdir($images_folder, 0777, true)) {
-                throw new Exception("Failed to create images folder");
+            if (!@mkdir($images_folder, 0777, true)) {
+                error_log("ERROR: Failed to create folder: $images_folder");
+                throw new Exception("Failed to create images folder at $images_folder");
             }
+            error_log("SUCCESS: Created folder $images_folder");
         }
         
+        // Make sure folder is writable
         if (!is_writable($images_folder)) {
-            if (!chmod($images_folder, 0777)) {
-                throw new Exception("Images folder is not writable");
+            @chmod($images_folder, 0777);
+            if (!is_writable($images_folder)) {
+                error_log("ERROR: Folder not writable: $images_folder");
+                throw new Exception("Images folder is not writable at $images_folder");
             }
         }
+        error_log("SUCCESS: Images folder is writable");
 
         $file_name = $file['name'] ?? '';
         $file_tmp = $file['tmp_name'] ?? '';
         $file_error = $file['error'] ?? UPLOAD_ERR_NO_FILE;
         $file_size = $file['size'] ?? 0;
+
+        error_log("DEBUG: File upload - name: $file_name, tmp: $file_tmp, error: $file_error, size: $file_size");
 
         // Validate file upload
         if ($file_error !== UPLOAD_ERR_OK) {
@@ -676,24 +687,23 @@ function uploadProductImageFile($product_id, $file, $is_primary = false, $conn =
         }
 
         if (!file_exists($file_tmp)) {
+            error_log("ERROR: Temp file doesn't exist: $file_tmp");
             throw new Exception("Invalid temp file: {$file_tmp}");
         }
         
+        error_log("SUCCESS: Temp file exists: $file_tmp");
+        
         // Only check is_uploaded_file() for files from native PHP upload
-        // For files from multipart parser, just check file exists
         $is_native_upload = is_uploaded_file($file_tmp);
-        error_log("DEBUG: File upload check - is_uploaded_file: " . ($is_native_upload ? 'true' : 'false') . ", file_exists: true");
-
-        // Check file size (max 5MB)
-        if ($file_size > 5242880) {
-            throw new Exception("File too large. Max 5MB allowed");
-        }
+        error_log("DEBUG: is_uploaded_file: " . ($is_native_upload ? 'true' : 'false'));
 
         // Validate file type
         $file_info = getimagesize($file_tmp);
         if (!$file_info) {
+            error_log("ERROR: Not a valid image file: $file_name");
             throw new Exception("Not a valid image file: {$file_name}");
         }
+        error_log("SUCCESS: File validated as image");
 
         // Generate unique filename
         $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
@@ -704,30 +714,41 @@ function uploadProductImageFile($product_id, $file, $is_primary = false, $conn =
         $new_file_name = 'product_' . $product_id . '_' . time() . '_' . uniqid() . '.' . $file_ext;
         $file_path = $images_folder . $new_file_name;
 
+        error_log("DEBUG: Moving file from $file_tmp to $file_path");
+
         // Move or copy uploaded file
         // For native uploads, use move_uploaded_file; for manual temp files, use rename
         if ($is_native_upload) {
             if (!move_uploaded_file($file_tmp, $file_path)) {
+                error_log("ERROR: move_uploaded_file failed");
                 throw new Exception("Failed to move uploaded file");
             }
+            error_log("SUCCESS: File moved via move_uploaded_file");
         } else {
             // For manually created temp files (from multipart parser)
             if (!rename($file_tmp, $file_path)) {
+                error_log("DEBUG: rename failed, trying copy");
                 // If rename fails, try copy
                 if (!copy($file_tmp, $file_path)) {
+                    error_log("ERROR: Both rename and copy failed");
                     throw new Exception("Failed to copy uploaded file");
                 }
                 @unlink($file_tmp); // Clean up temp file
+                error_log("SUCCESS: File copied");
+            } else {
+                error_log("SUCCESS: File renamed");
             }
         }
 
         // Set permissions
-        chmod($file_path, 0644);
+        @chmod($file_path, 0644);
+        error_log("SUCCESS: File saved at $file_path");
 
         // Generate URL dynamically based on server
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $script_dir = dirname($_SERVER['SCRIPT_NAME']);
         $image_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . $script_dir . '/images/products/' . $new_file_name;
+        error_log("SUCCESS: Image URL generated: $image_url");
 
         // Save to product_images table if connection available
         if ($conn !== null) {
@@ -750,11 +771,14 @@ function uploadProductImageFile($product_id, $file, $is_primary = false, $conn =
                 $insert_stmt->bindParam(':is_primary', $is_primary_int, PDO::PARAM_INT);
                 
                 if ($insert_stmt->execute()) {
+                    error_log("SUCCESS: Image record inserted into DB");
                     return $image_url;
                 } else {
+                    error_log("WARNING: DB insert failed but returning URL anyway");
                     return $image_url; // Return URL even if DB save fails
                 }
             } catch (Exception $e) {
+                error_log("WARNING: DB error but returning URL: " . $e->getMessage());
                 return $image_url; // Return URL even if DB error
             }
         }
@@ -762,8 +786,9 @@ function uploadProductImageFile($product_id, $file, $is_primary = false, $conn =
         return $image_url;
 
     } catch (Exception $e) {
-        // Log error but don't crash
-        error_log("Image upload error: " . $e->getMessage());
+        // Log detailed error
+        error_log("ERROR in uploadProductImageFile: " . $e->getMessage());
+        error_log("ERROR Stack: " . $e->getTraceAsString());
         return null;
     }
 }
