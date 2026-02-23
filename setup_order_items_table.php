@@ -1,18 +1,8 @@
 <?php
 // phpMyAdmin SQL Dump - Order Items Table
-$host = 'localhost';
-$db_name = 'ecommerce_app';
-$username = 'root';
-$password = '';
+require_once 'connect.php';
 
 try {
-    $conn = new PDO(
-        'mysql:host=' . $host . ';dbname=' . $db_name,
-        $username,
-        $password
-    );
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     // Create order_items table
     $sql = "CREATE TABLE IF NOT EXISTS `order_items` (
         `id` bigint(20) NOT NULL AUTO_INCREMENT,

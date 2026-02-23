@@ -1,22 +1,15 @@
 <?php
 
 class Database {
-    private $host = 'localhost';
-    private $db_name = 'ecommerce_app';
-    private $username = 'root';
-    private $password = '';
     private $conn;
 
     public function connect() {
         $this->conn = null;
 
         try {
-            $this->conn = new PDO(
-                'mysql:host=' . $this->host . ';dbname=' . $this->db_name,
-                $this->username,
-                $this->password
-            );
-            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            // Use the same credentials from connect.php
+            require __DIR__ . '/../connect.php';
+            $this->conn = $conn;
         } catch (PDOException $e) {
             echo 'Connection Error: ' . $e->getMessage();
         }

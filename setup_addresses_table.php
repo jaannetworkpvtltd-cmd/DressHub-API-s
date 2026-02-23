@@ -8,19 +8,9 @@
 // Server version: 10.4.28-MariaDB
 // PHP Version: 8.2.4
 
-$host = 'localhost';
-$db_name = 'ecommerce_app';
-$username = 'root';
-$password = '';
+require_once 'connect.php';
 
 try {
-    $conn = new PDO(
-        'mysql:host=' . $host . ';dbname=' . $db_name,
-        $username,
-        $password
-    );
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     // Create addresses table
     $sql = "CREATE TABLE IF NOT EXISTS `addresses` (
         `id` bigint(20) NOT NULL AUTO_INCREMENT,

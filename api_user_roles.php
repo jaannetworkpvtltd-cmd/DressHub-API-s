@@ -17,23 +17,7 @@ require_once __DIR__ . '/jwt.php';
 require_once __DIR__ . '/models/UserRole.php';
 
 // Database connection
-$host = 'localhost';
-$db_name = 'ecommerce_app';
-$username = 'root';
-$password = '';
-
-try {
-    $conn = new PDO(
-        'mysql:host=' . $host . ';dbname=' . $db_name,
-        $username,
-        $password
-    );
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['status' => false, 'message' => 'Database Connection Error: ' . $e->getMessage()]);
-    exit();
-}
+require_once __DIR__ . '/connect.php';
 
 // Initialize JWT and Model
 $jwt = new JWT();
