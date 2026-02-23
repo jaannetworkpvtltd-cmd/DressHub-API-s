@@ -6,6 +6,7 @@ header('Access-Control-Allow-Methods: POST');
 
 require 'connect.php';
 require 'jwt.php';
+require 'models/UserRole.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -43,11 +44,16 @@ try {
         exit;
     }
     
-    // Generate JWT token
+    // Get user role
+    $userRole = new UserRole($conn);
+    $role = $userRole->getFirstRoleByUserId($user['id']);
+    
+    // Generate JWT token with role
     $jwt = new JWT();
     $token_data = [
         'user_id' => $user['id'],
         'username' => $user['username'],
+        'role' => $role,
         'iat' => time(),
         'exp' => time() + (24 * 60 * 60) // 24 hours expiration
     ];
@@ -56,15 +62,24 @@ try {
     
     http_response_code(200);
     echo json_encode([
+        'status' => true,
+        'code' => 200,
         'message' => 'Login successful',
         'token' => $token,
+        'token_type' => 'Bearer',
         'user' => [
             'id' => $user['id'],
-            'username' => $user['username']
+            'username' => $user['username'],
+            'role' => $role
         ]
     ]);
     
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['message' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode([
+        'status' => false,
+        'code' => 500,
+        'message' => 'Database error: ' . $e->getMessage()
+    ]);
 }
+?>
