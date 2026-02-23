@@ -206,8 +206,10 @@ function uploadProductImage($conn, $images_folder) {
             return;
         }
 
-        // Generate URL
-        $image_url = 'http://' . $_SERVER['HTTP_HOST'] . '/DressHub%20APIs/images/products/' . $new_file_name;
+        // Generate URL dynamically based on server
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $script_dir = dirname($_SERVER['SCRIPT_NAME']);
+        $image_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . $script_dir . '/images/products/' . $new_file_name;
 
         // If this is primary, set others to non-primary
         if ($is_primary) {

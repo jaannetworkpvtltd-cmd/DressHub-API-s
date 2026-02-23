@@ -11,13 +11,14 @@ class CardController {
         $this->card = new Card($db);
     }
 
-    // GET: Get all cards or cards by user_id
+    // GET: Get cards for the authenticated user only
     public function getCards($params = []) {
         try {
-            if (isset($params['user_id'])) {
-                $cards = $this->card->getByUserId($params['user_id']);
-            } else if (isset($params['id'])) {
-                $card = $this->card->getById($params['id']);
+            $user_id = $params['user_id'];
+
+            if (isset($params['id'])) {
+                // Get specific card but only if it belongs to this user
+                $card = $this->card->getByIdAndUserId($params['id'], $user_id);
                 if (!$card) {
                     return [
                         'status' => false,
@@ -27,7 +28,8 @@ class CardController {
                 }
                 $cards = [$card];
             } else {
-                $cards = $this->card->getAll();
+                // Get all cards for this user
+                $cards = $this->card->getByUserId($user_id);
             }
 
             return [
@@ -110,11 +112,11 @@ class CardController {
         }
     }
 
-    // PUT: Update a card
-    public function updateCard($id, $input) {
+    // PUT: Update a card (only if owned by user)
+    public function updateCard($id, $input, $user_id = null) {
         try {
-            // Check if card exists
-            $card = $this->card->getById($id);
+            // Check if card exists and belongs to the user
+            $card = $user_id ? $this->card->getByIdAndUserId($id, $user_id) : $this->card->getById($id);
             if (!$card) {
                 return [
                     'status' => false,
@@ -178,11 +180,11 @@ class CardController {
         }
     }
 
-    // DELETE: Delete a card
-    public function deleteCard($id) {
+    // DELETE: Delete a card (only if owned by user)
+    public function deleteCard($id, $user_id = null) {
         try {
-            // Check if card exists
-            $card = $this->card->getById($id);
+            // Check if card exists and belongs to the user
+            $card = $user_id ? $this->card->getByIdAndUserId($id, $user_id) : $this->card->getById($id);
             if (!$card) {
                 return [
                     'status' => false,

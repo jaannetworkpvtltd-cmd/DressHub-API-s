@@ -56,6 +56,20 @@ class Address {
         }
     }
 
+    // Get single address by id AND user_id (ownership check)
+    public function getByIdAndUserId($id, $user_id) {
+        try {
+            $query = "SELECT * FROM " . $this->table . " WHERE id = :id AND user_id = :user_id";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':user_id', $user_id);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            throw new Exception("Error fetching address: " . $e->getMessage());
+        }
+    }
+
     // Create address
     public function create($data) {
         try {

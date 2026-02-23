@@ -85,12 +85,12 @@ function verifyToken() {
 // Route handling
 switch ($request_method) {
     case 'GET':
-        verifyToken();
-        $params = [];
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+        // Users can only get their own addresses
+        $params = ['user_id' => $jwt_user_id];
         if ($address_id) {
             $params['id'] = $address_id;
-        } else if ($user_id) {
-            $params['user_id'] = $user_id;
         }
         $result = $controller->getAddresses($params);
         http_response_code($result['code']);
@@ -98,16 +98,20 @@ switch ($request_method) {
         break;
 
     case 'POST':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+        // Force user_id from JWT token
+        $input['user_id'] = $jwt_user_id;
         $result = $controller->createAddress($input);
         http_response_code($result['code']);
         echo json_encode($result);
         break;
 
     case 'PUT':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         if ($address_id) {
-            $result = $controller->updateAddress($address_id, $input);
+            $result = $controller->updateAddress($address_id, $input, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else {
@@ -117,9 +121,10 @@ switch ($request_method) {
         break;
 
     case 'DELETE':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         if ($address_id) {
-            $result = $controller->deleteAddress($address_id);
+            $result = $controller->deleteAddress($address_id, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else {
