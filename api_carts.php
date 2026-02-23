@@ -86,7 +86,8 @@ function verifyToken() {
 // Route handling - Determine which resource to handle
 switch ($request_method) {
     case 'GET':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         
         if ($resource_type === 'items') {
             // CART ITEMS - GET
@@ -96,27 +97,23 @@ switch ($request_method) {
             } else if ($cart_id) {
                 $params['cart_id'] = $cart_id;
                 if ($action === 'total') {
-                    $result = $cartItemController->getCartTotal($cart_id);
+                    $result = $cartItemController->getCartTotal($cart_id, $jwt_user_id);
                 } else {
-                    $result = $cartItemController->getCartItems($params);
+                    $result = $cartItemController->getCartItems($params, $jwt_user_id);
                 }
             } else {
-                $result = $cartItemController->getCartItems($params);
+                $result = $cartItemController->getCartItems($params, $jwt_user_id);
             }
             if (!isset($result)) {
-                $result = $cartItemController->getCartItems($params);
+                $result = $cartItemController->getCartItems($params, $jwt_user_id);
             }
         } else {
             // CART - GET
             $params = [];
             if ($id) {
                 $params['id'] = $id;
-            } else if ($user_id) {
-                $params['user_id'] = $user_id;
-            } else if ($token) {
-                $params['token'] = $token;
             }
-            $result = $cartController->getCarts($params);
+            $result = $cartController->getCarts($params, $jwt_user_id);
         }
         
         http_response_code($result['code']);
@@ -124,14 +121,15 @@ switch ($request_method) {
         break;
 
     case 'POST':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         
         if ($resource_type === 'items') {
             // CART ITEMS - POST (Add item to cart)
-            $result = $cartItemController->addCartItem($input);
+            $result = $cartItemController->addCartItem($input, $jwt_user_id);
         } else {
             // CART - POST (Create cart)
-            $result = $cartController->createCart($input);
+            $result = $cartController->createCart($input, $jwt_user_id);
         }
         
         http_response_code($result['code']);
@@ -139,12 +137,13 @@ switch ($request_method) {
         break;
 
     case 'PUT':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         
         if ($resource_type === 'items') {
             // CART ITEMS - PUT (Update item)
             if ($id) {
-                $result = $cartItemController->updateCartItem($id, $input);
+                $result = $cartItemController->updateCartItem($id, $input, $jwt_user_id);
                 http_response_code($result['code']);
                 echo json_encode($result);
             } else {
@@ -154,7 +153,7 @@ switch ($request_method) {
         } else {
             // CART - PUT (Update cart)
             if ($id) {
-                $result = $cartController->updateCart($id, $input);
+                $result = $cartController->updateCart($id, $input, $jwt_user_id);
                 http_response_code($result['code']);
                 echo json_encode($result);
             } else {
@@ -165,16 +164,17 @@ switch ($request_method) {
         break;
 
     case 'DELETE':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         
         if ($resource_type === 'items') {
             // CART ITEMS - DELETE
             if ($action === 'clear' && $cart_id) {
                 // Clear entire cart
-                $result = $cartItemController->clearCart($cart_id);
+                $result = $cartItemController->clearCart($cart_id, $jwt_user_id);
             } else if ($id) {
                 // Remove single item
-                $result = $cartItemController->removeCartItem($id);
+                $result = $cartItemController->removeCartItem($id, $jwt_user_id);
             } else {
                 http_response_code(400);
                 echo json_encode(['status' => false, 'message' => 'Item ID is required for delete']);
@@ -183,7 +183,7 @@ switch ($request_method) {
         } else {
             // CART - DELETE
             if ($id) {
-                $result = $cartController->deleteCart($id);
+                $result = $cartController->deleteCart($id, $jwt_user_id);
             } else {
                 http_response_code(400);
                 echo json_encode(['status' => false, 'message' => 'Cart ID is required for delete']);

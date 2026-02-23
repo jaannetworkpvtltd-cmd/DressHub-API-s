@@ -76,8 +76,9 @@ $cart_id = isset($_GET['cart_id']) ? $_GET['cart_id'] : null;
 // Route handling
 switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
-        verifyToken();
-        
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+
         if ($resource_type === 'items') {
             // CART ITEMS - GET
             $params = [];
@@ -86,21 +87,21 @@ switch ($_SERVER['REQUEST_METHOD']) {
             } else if ($cart_id) {
                 $params['cart_id'] = $cart_id;
             }
-            $result = $cartItemController->getCartItems($params);
+            $result = $cartItemController->getCartItems($params, $jwt_user_id);
         } else {
             // CART - GET (with full details including items)
             $params = [];
             if ($id) {
                 $params['id'] = $id;
                 // Get single cart with full details
-                $cart = $cartController->getCarts($params);
+                $cart = $cartController->getCarts($params, $jwt_user_id);
                 
                 if ($cart['status'] && !empty($cart['data'])) {
                     $cart_data = $cart['data'][0];
                     $cart_id = $cart_data['id'];
                     
                     // Get all items for this cart
-                    $items_result = $cartItemController->getCartItems(['cart_id' => $cart_id]);
+                    $items_result = $cartItemController->getCartItems(['cart_id' => $cart_id], $jwt_user_id);
                     $items = $items_result['data'] ?? [];
                     
                     // Calculate totals
@@ -132,11 +133,12 @@ switch ($_SERVER['REQUEST_METHOD']) {
                     exit();
                 }
             } else if ($user_id) {
-                $params['user_id'] = $user_id;
+                // ignore provided user_id; always use JWT user id to list carts
+                $params['user_id'] = $jwt_user_id;
             }
             
             // Get carts list
-            $cart_result = $cartController->getCarts($params);
+            $cart_result = $cartController->getCarts($params, $jwt_user_id);
             
             if ($cart_result['status'] && !empty($cart_result['data'])) {
                 // Enhance each cart with items and totals
@@ -146,7 +148,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
                     $cart_id = $cart_data['id'];
                     
                     // Get items for this cart
-                    $items_result = $cartItemController->getCartItems(['cart_id' => $cart_id]);
+                    $items_result = $cartItemController->getCartItems(['cart_id' => $cart_id], $jwt_user_id);
                     $items = $items_result['data'] ?? [];
                     
                     // Calculate totals
@@ -183,7 +185,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 
     case 'POST':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         
         // Check if this is a combined cart + items creation
         if (isset($input['items']) && is_array($input['items'])) {
@@ -192,13 +195,13 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 // Start transaction
                 $conn->beginTransaction();
                 
-                // Create the cart
+                // Create the cart (force JWT user as owner)
                 $cart_data = [
-                    'user_id' => $input['user_id'] ?? null,
+                    'user_id' => $jwt_user_id,
                     'cart_token' => $input['cart_token'] ?? null
                 ];
                 
-                $cart_result = $cartController->createCart($cart_data);
+                $cart_result = $cartController->createCart($cart_data, $jwt_user_id);
                 
                 if (!$cart_result['status']) {
                     $conn->rollBack();
@@ -221,7 +224,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
                         'applied_price' => $item['applied_price'] ?? null
                     ];
                     
-                    $item_result = $cartItemController->addCartItem($item_data);
+                    $item_result = $cartItemController->addCartItem($item_data, $jwt_user_id);
                     
                     if (!$item_result['status']) {
                         $conn->rollBack();
@@ -262,20 +265,25 @@ switch ($_SERVER['REQUEST_METHOD']) {
             }
         } else if ($resource_type === 'items') {
             // CART ITEMS - POST (add single item)
-            $result = $cartItemController->addCartItem($input);
+            $decoded = verifyToken();
+            $jwt_user_id = $decoded['user_id'];
+            $result = $cartItemController->addCartItem($input, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else {
             // CART - POST (create cart only)
-            $result = $cartController->createCart($input);
+            $decoded = verifyToken();
+            $jwt_user_id = $decoded['user_id'];
+            $result = $cartController->createCart($input, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         }
         break;
 
     case 'PUT':
-        verifyToken();
-        
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+
         if ($resource_type === 'items') {
             // CART ITEMS - PUT
             if (!$id) {
@@ -283,7 +291,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 echo json_encode(['status' => false, 'message' => 'Item ID is required for update']);
                 exit();
             }
-            $result = $cartItemController->updateCartItem($id, $input);
+            $result = $cartItemController->updateCartItem($id, $input, $jwt_user_id);
         } else {
             // CART - PUT (with full details)
             if (!$id) {
@@ -291,12 +299,12 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 echo json_encode(['status' => false, 'message' => 'Cart ID is required for update']);
                 exit();
             }
-            $result = $cartController->updateCart($id, $input);
+            $result = $cartController->updateCart($id, $input, $jwt_user_id);
             
             if ($result['status']) {
                 // Get updated cart with full details
                 $cart_data = $result['data'];
-                $items_result = $cartItemController->getCartItems(['cart_id' => $id]);
+                $items_result = $cartItemController->getCartItems(['cart_id' => $id], $jwt_user_id);
                 $items = $items_result['data'] ?? [];
                 
                 // Calculate totals
@@ -330,8 +338,9 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 
     case 'DELETE':
-        verifyToken();
-        
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+
         if ($resource_type === 'items') {
             // CART ITEMS - DELETE
             if (!$id) {
@@ -339,7 +348,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 echo json_encode(['status' => false, 'message' => 'Item ID is required for delete']);
                 exit();
             }
-            $result = $cartItemController->removeCartItem($id);
+            $result = $cartItemController->removeCartItem($id, $jwt_user_id);
         } else {
             // CART - DELETE (with full details before deletion)
             if (!$id) {
@@ -349,17 +358,17 @@ switch ($_SERVER['REQUEST_METHOD']) {
             }
             
             // First get cart data before deletion
-            $cart_before = $cartController->getCarts(['id' => $id]);
+            $cart_before = $cartController->getCarts(['id' => $id], $jwt_user_id);
             if (!$cart_before['status']) {
                 http_response_code(404);
                 echo json_encode(['status' => false, 'code' => 404, 'message' => 'Cart not found']);
                 exit();
             }
             
-            $items_before = $cartItemController->getCartItems(['cart_id' => $id])['data'] ?? [];
+            $items_before = $cartItemController->getCartItems(['cart_id' => $id], $jwt_user_id)['data'] ?? [];
             
             // Now delete
-            $result = $cartController->deleteCart($id);
+            $result = $cartController->deleteCart($id, $jwt_user_id);
             
             if ($result['status']) {
                 // Calculate totals from deleted cart

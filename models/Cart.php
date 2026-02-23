@@ -51,6 +51,20 @@ class Cart {
         }
     }
 
+    // Get single cart by id and user_id (ownership check)
+    public function getByIdAndUserId($id, $user_id) {
+        try {
+            $query = "SELECT * FROM " . $this->table . " WHERE id = :id AND user_id = :user_id";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':user_id', $user_id);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            throw new Exception("Error fetching cart by id and user: " . $e->getMessage());
+        }
+    }
+
     // Get cart by token
     public function getByToken($token) {
         try {
@@ -61,6 +75,20 @@ class Cart {
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             throw new Exception("Error fetching cart by token: " . $e->getMessage());
+        }
+    }
+
+    // Get cart by token and user_id (ownership check)
+    public function getByTokenAndUserId($token, $user_id) {
+        try {
+            $query = "SELECT * FROM " . $this->table . " WHERE cart_token = :token AND user_id = :user_id";
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':token', $token);
+            $stmt->bindParam(':user_id', $user_id);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            throw new Exception("Error fetching cart by token and user: " . $e->getMessage());
         }
     }
 

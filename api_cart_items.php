@@ -86,38 +86,41 @@ function verifyToken() {
 // Route handling
 switch ($request_method) {
     case 'GET':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         $params = [];
         if ($item_id) {
             $params['id'] = $item_id;
         } else if ($cart_id) {
             $params['cart_id'] = $cart_id;
             if ($action === 'total') {
-                $result = $controller->getCartTotal($cart_id);
+                $result = $controller->getCartTotal($cart_id, $jwt_user_id);
             } else {
-                $result = $controller->getCartItems($params);
+                $result = $controller->getCartItems($params, $jwt_user_id);
             }
         } else {
-            $result = $controller->getCartItems($params);
+            $result = $controller->getCartItems($params, $jwt_user_id);
         }
         if (!isset($result)) {
-            $result = $controller->getCartItems($params);
+            $result = $controller->getCartItems($params, $jwt_user_id);
         }
         http_response_code($result['code']);
         echo json_encode($result);
         break;
 
     case 'POST':
-        verifyToken();
-        $result = $controller->addCartItem($input);
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+        $result = $controller->addCartItem($input, $jwt_user_id);
         http_response_code($result['code']);
         echo json_encode($result);
         break;
 
     case 'PUT':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         if ($item_id) {
-            $result = $controller->updateCartItem($item_id, $input);
+            $result = $controller->updateCartItem($item_id, $input, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else {
@@ -127,15 +130,16 @@ switch ($request_method) {
         break;
 
     case 'DELETE':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         if ($action === 'clear' && $cart_id) {
             // Clear entire cart
-            $result = $controller->clearCart($cart_id);
+            $result = $controller->clearCart($cart_id, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else if ($item_id) {
             // Remove single item
-            $result = $controller->removeCartItem($item_id);
+            $result = $controller->removeCartItem($item_id, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else {
