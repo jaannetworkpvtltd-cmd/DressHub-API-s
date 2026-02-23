@@ -85,12 +85,12 @@ function verifyToken() {
 // Route handling
 switch ($request_method) {
     case 'GET':
-        verifyToken();
-        $params = [];
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+        // Users can only get their own cards
+        $params = ['user_id' => $jwt_user_id];
         if ($card_id) {
             $params['id'] = $card_id;
-        } else if ($user_id) {
-            $params['user_id'] = $user_id;
         }
         $result = $controller->getCards($params);
         http_response_code($result['code']);
@@ -98,16 +98,20 @@ switch ($request_method) {
         break;
 
     case 'POST':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
+        // Force user_id from JWT token (user can only create their own cards)
+        $input['user_id'] = $jwt_user_id;
         $result = $controller->createCard($input);
         http_response_code($result['code']);
         echo json_encode($result);
         break;
 
     case 'PUT':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         if ($card_id) {
-            $result = $controller->updateCard($card_id, $input);
+            $result = $controller->updateCard($card_id, $input, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else {
@@ -117,9 +121,10 @@ switch ($request_method) {
         break;
 
     case 'DELETE':
-        verifyToken();
+        $decoded = verifyToken();
+        $jwt_user_id = $decoded['user_id'];
         if ($card_id) {
-            $result = $controller->deleteCard($card_id);
+            $result = $controller->deleteCard($card_id, $jwt_user_id);
             http_response_code($result['code']);
             echo json_encode($result);
         } else {

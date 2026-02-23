@@ -528,6 +528,10 @@ function createProduct($conn, $input) {
             // Handle image upload if provided
             $image_url = null;
             
+            // Debug: Log $_FILES contents
+            error_log("DEBUG: \$_FILES keys: " . json_encode(array_keys($_FILES)));
+            error_log("DEBUG: \$_FILES content: " . json_encode($_FILES));
+            
             // Check for 'image' or 'primary_image' field
             $image_field = null;
             if (isset($_FILES['primary_image']) && $_FILES['primary_image']['error'] === UPLOAD_ERR_OK) {
@@ -537,9 +541,11 @@ function createProduct($conn, $input) {
             }
             
             if ($image_field) {
-                error_log("DEBUG: Uploading image for product $product_id");
+                error_log("DEBUG: Uploading image for product $product_id using field '$image_field'");
                 $image_url = uploadProductImageFile($product_id, $_FILES[$image_field], true, $conn);
                 error_log("DEBUG: Image upload result: " . ($image_url ? $image_url : 'null'));
+            } else {
+                error_log("DEBUG: No image field found in \$_FILES. Available: " . json_encode(array_keys($_FILES)));
             }
 
             // Handle variants if provided
@@ -718,8 +724,10 @@ function uploadProductImageFile($product_id, $file, $is_primary = false, $conn =
         // Set permissions
         chmod($file_path, 0644);
 
-        // Generate URL
-        $image_url = 'http://' . $_SERVER['HTTP_HOST'] . '/DressHub%20APIs/images/products/' . $new_file_name;
+        // Generate URL dynamically based on server
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $script_dir = dirname($_SERVER['SCRIPT_NAME']);
+        $image_url = $protocol . '://' . $_SERVER['HTTP_HOST'] . $script_dir . '/images/products/' . $new_file_name;
 
         // Save to product_images table if connection available
         if ($conn !== null) {

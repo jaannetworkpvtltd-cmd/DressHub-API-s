@@ -11,13 +11,14 @@ class AddressController {
         $this->address = new Address($db);
     }
 
-    // GET: Get all addresses or addresses by user_id
+    // GET: Get addresses for the authenticated user only
     public function getAddresses($params = []) {
         try {
-            if (isset($params['user_id'])) {
-                $addresses = $this->address->getByUserId($params['user_id']);
-            } else if (isset($params['id'])) {
-                $address = $this->address->getById($params['id']);
+            $user_id = $params['user_id'];
+
+            if (isset($params['id'])) {
+                // Get specific address but only if it belongs to this user
+                $address = $this->address->getByIdAndUserId($params['id'], $user_id);
                 if (!$address) {
                     return [
                         'status' => false,
@@ -27,7 +28,8 @@ class AddressController {
                 }
                 $addresses = [$address];
             } else {
-                $addresses = $this->address->getAll();
+                // Get all addresses for this user
+                $addresses = $this->address->getByUserId($user_id);
             }
 
             return [
@@ -92,11 +94,11 @@ class AddressController {
         }
     }
 
-    // PUT: Update an address
-    public function updateAddress($id, $input) {
+    // PUT: Update an address (only if owned by user)
+    public function updateAddress($id, $input, $user_id = null) {
         try {
-            // Check if address exists
-            $address = $this->address->getById($id);
+            // Check if address exists and belongs to the user
+            $address = $user_id ? $this->address->getByIdAndUserId($id, $user_id) : $this->address->getById($id);
             if (!$address) {
                 return [
                     'status' => false,
@@ -129,11 +131,11 @@ class AddressController {
         }
     }
 
-    // DELETE: Delete an address
-    public function deleteAddress($id) {
+    // DELETE: Delete an address (only if owned by user)
+    public function deleteAddress($id, $user_id = null) {
         try {
-            // Check if address exists
-            $address = $this->address->getById($id);
+            // Check if address exists and belongs to the user
+            $address = $user_id ? $this->address->getByIdAndUserId($id, $user_id) : $this->address->getById($id);
             if (!$address) {
                 return [
                     'status' => false,
