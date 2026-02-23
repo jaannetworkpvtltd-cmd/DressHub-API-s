@@ -1,20 +1,36 @@
 <?php
 
 require_once __DIR__ . '/../models/CartItem.php';
+require_once __DIR__ . '/../models/Cart.php';
 
 class CartItemController {
     private $cartItem;
     private $conn;
+    private $cart;
 
     public function __construct($db) {
         $this->conn = $db;
         $this->cartItem = new CartItem($db);
+        $this->cart = new Cart($db);
     }
 
     // GET: Get all cart items or items by cart_id
-    public function getCartItems($params = []) {
+    // $jwt_user_id restricts access to cart items belonging to the user
+    public function getCartItems($params = [], $jwt_user_id = null) {
         try {
             if (isset($params['cart_id'])) {
+                // Verify cart ownership when JWT user provided
+                if ($jwt_user_id !== null) {
+                    $cart = $this->cart->getByIdAndUserId($params['cart_id'], $jwt_user_id);
+                    if (!$cart) {
+                        return [
+                            'status' => false,
+                            'code' => 403,
+                            'message' => 'Forbidden: cart does not belong to user'
+                        ];
+                    }
+                }
+
                 $items = $this->cartItem->getByCartId($params['cart_id']);
                 $total = $this->cartItem->getCartTotal($params['cart_id']);
                 return [
@@ -33,9 +49,27 @@ class CartItemController {
                         'message' => 'Cart item not found'
                     ];
                 }
+
+                // If JWT user provided, ensure the parent cart belongs to user
+                if ($jwt_user_id !== null) {
+                    $cart = $this->cart->getByIdAndUserId($item['cart_id'], $jwt_user_id);
+                    if (!$cart) {
+                        return [
+                            'status' => false,
+                            'code' => 403,
+                            'message' => 'Forbidden: cart item does not belong to user'
+                        ];
+                    }
+                }
+
                 $items = [$item];
             } else {
-                $items = $this->cartItem->getAll();
+                // If no params, restrict to none (or allow all if desired); prefer safe default
+                return [
+                    'status' => false,
+                    'code' => 400,
+                    'message' => 'cart_id or id parameter required'
+                ];
             }
 
             return [
@@ -54,7 +88,7 @@ class CartItemController {
     }
 
     // POST: Create a new cart item
-    public function addCartItem($input) {
+    public function addCartItem($input, $jwt_user_id = null) {
         try {
             // Validate required fields
             if (!isset($input['cart_id']) || !isset($input['product_variant_id']) || 
@@ -89,6 +123,18 @@ class CartItemController {
                     'code' => 400,
                     'message' => 'applied_price must be a non-negative number'
                 ];
+            }
+
+            // Verify cart ownership when JWT user provided
+            if ($jwt_user_id !== null) {
+                $cart = $this->cart->getByIdAndUserId($input['cart_id'], $jwt_user_id);
+                if (!$cart) {
+                    return [
+                        'status' => false,
+                        'code' => 403,
+                        'message' => 'Forbidden: cart does not belong to user'
+                    ];
+                }
             }
 
             // Check if item already exists in cart
@@ -133,7 +179,7 @@ class CartItemController {
     }
 
     // PUT: Update a cart item
-    public function updateCartItem($id, $input) {
+    public function updateCartItem($id, $input, $jwt_user_id = null) {
         try {
             // Check if item exists
             $item = $this->cartItem->getById($id);
@@ -143,6 +189,17 @@ class CartItemController {
                     'code' => 404,
                     'message' => 'Cart item not found'
                 ];
+            }
+
+            if ($jwt_user_id !== null) {
+                $cart = $this->cart->getByIdAndUserId($item['cart_id'], $jwt_user_id);
+                if (!$cart) {
+                    return [
+                        'status' => false,
+                        'code' => 403,
+                        'message' => 'Forbidden: cart item does not belong to user'
+                    ];
+                }
             }
 
             // Validate quantity if provided
@@ -192,7 +249,7 @@ class CartItemController {
     }
 
     // DELETE: Delete a cart item
-    public function removeCartItem($id) {
+    public function removeCartItem($id, $jwt_user_id = null) {
         try {
             // Check if item exists
             $item = $this->cartItem->getById($id);
@@ -202,6 +259,17 @@ class CartItemController {
                     'code' => 404,
                     'message' => 'Cart item not found'
                 ];
+            }
+
+            if ($jwt_user_id !== null) {
+                $cart = $this->cart->getByIdAndUserId($item['cart_id'], $jwt_user_id);
+                if (!$cart) {
+                    return [
+                        'status' => false,
+                        'code' => 403,
+                        'message' => 'Forbidden: cart item does not belong to user'
+                    ];
+                }
             }
 
             if ($this->cartItem->delete($id)) {
@@ -227,8 +295,18 @@ class CartItemController {
     }
 
     // DELETE: Clear entire cart
-    public function clearCart($cart_id) {
+    public function clearCart($cart_id, $jwt_user_id = null) {
         try {
+            if ($jwt_user_id !== null) {
+                $cart = $this->cart->getByIdAndUserId($cart_id, $jwt_user_id);
+                if (!$cart) {
+                    return [
+                        'status' => false,
+                        'code' => 403,
+                        'message' => 'Forbidden: cart does not belong to user'
+                    ];
+                }
+            }
             if ($this->cartItem->deleteByCartId($cart_id)) {
                 return [
                     'status' => true,
@@ -252,8 +330,19 @@ class CartItemController {
     }
 
     // GET: Get cart total
-    public function getCartTotal($cart_id) {
+    public function getCartTotal($cart_id, $jwt_user_id = null) {
         try {
+            if ($jwt_user_id !== null) {
+                $cart = $this->cart->getByIdAndUserId($cart_id, $jwt_user_id);
+                if (!$cart) {
+                    return [
+                        'status' => false,
+                        'code' => 403,
+                        'message' => 'Forbidden: cart does not belong to user'
+                    ];
+                }
+            }
+
             $total = $this->cartItem->getCartTotal($cart_id);
             return [
                 'status' => true,

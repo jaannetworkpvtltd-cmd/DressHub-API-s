@@ -12,32 +12,61 @@ class CartController {
     }
 
     // GET: Get all carts or carts by user_id or specific cart
-    public function getCarts($params = []) {
+    // $jwt_user_id enforces that users only access their own carts
+    public function getCarts($params = [], $jwt_user_id = null) {
         try {
-            if (isset($params['user_id'])) {
-                $carts = $this->cart->getByUserId($params['user_id']);
-            } else if (isset($params['id'])) {
-                $cart = $this->cart->getById($params['id']);
-                if (!$cart) {
-                    return [
-                        'status' => false,
-                        'code' => 404,
-                        'message' => 'Cart not found'
-                    ];
+            // If JWT user id provided, restrict results to that user
+            if ($jwt_user_id !== null) {
+                if (isset($params['id'])) {
+                    $cart = $this->cart->getByIdAndUserId($params['id'], $jwt_user_id);
+                    if (!$cart) {
+                        return [
+                            'status' => false,
+                            'code' => 404,
+                            'message' => 'Cart not found'
+                        ];
+                    }
+                    $carts = [$cart];
+                } else if (isset($params['token'])) {
+                    $cart = $this->cart->getByTokenAndUserId($params['token'], $jwt_user_id);
+                    if (!$cart) {
+                        return [
+                            'status' => false,
+                            'code' => 404,
+                            'message' => 'Cart not found'
+                        ];
+                    }
+                    $carts = [$cart];
+                } else {
+                    $carts = $this->cart->getByUserId($jwt_user_id);
                 }
-                $carts = [$cart];
-            } else if (isset($params['token'])) {
-                $cart = $this->cart->getByToken($params['token']);
-                if (!$cart) {
-                    return [
-                        'status' => false,
-                        'code' => 404,
-                        'message' => 'Cart not found'
-                    ];
-                }
-                $carts = [$cart];
             } else {
-                $carts = $this->cart->getAll();
+                // No JWT user provided — fall back to previous behavior
+                if (isset($params['user_id'])) {
+                    $carts = $this->cart->getByUserId($params['user_id']);
+                } else if (isset($params['id'])) {
+                    $cart = $this->cart->getById($params['id']);
+                    if (!$cart) {
+                        return [
+                            'status' => false,
+                            'code' => 404,
+                            'message' => 'Cart not found'
+                        ];
+                    }
+                    $carts = [$cart];
+                } else if (isset($params['token'])) {
+                    $cart = $this->cart->getByToken($params['token']);
+                    if (!$cart) {
+                        return [
+                            'status' => false,
+                            'code' => 404,
+                            'message' => 'Cart not found'
+                        ];
+                    }
+                    $carts = [$cart];
+                } else {
+                    $carts = $this->cart->getAll();
+                }
             }
 
             return [
@@ -56,10 +85,13 @@ class CartController {
     }
 
     // POST: Create a new cart
-    public function createCart($input) {
+    // $jwt_user_id will be forced as owner of the cart
+    public function createCart($input, $jwt_user_id = null) {
         try {
-            // user_id is optional, but if provided, validate it
-            if (isset($input['user_id']) && !is_numeric($input['user_id'])) {
+            // Force user_id to JWT user when available
+            if ($jwt_user_id !== null) {
+                $input['user_id'] = $jwt_user_id;
+            } else if (isset($input['user_id']) && !is_numeric($input['user_id'])) {
                 return [
                     'status' => false,
                     'code' => 400,
@@ -106,10 +138,14 @@ class CartController {
     }
 
     // PUT: Update a cart
-    public function updateCart($id, $input) {
+    public function updateCart($id, $input, $jwt_user_id = null) {
         try {
-            // Check if cart exists
-            $cart = $this->cart->getById($id);
+            // Check if cart exists and belongs to JWT user when provided
+            if ($jwt_user_id !== null) {
+                $cart = $this->cart->getByIdAndUserId($id, $jwt_user_id);
+            } else {
+                $cart = $this->cart->getById($id);
+            }
             if (!$cart) {
                 return [
                     'status' => false,
@@ -139,6 +175,11 @@ class CartController {
                 }
             }
 
+            // Prevent changing ownership via update
+            if (isset($input['user_id'])) {
+                unset($input['user_id']);
+            }
+
             if ($this->cart->update($id, $input)) {
                 $updated_cart = $this->cart->getById($id);
                 return [
@@ -164,10 +205,14 @@ class CartController {
     }
 
     // DELETE: Delete a cart
-    public function deleteCart($id) {
+    public function deleteCart($id, $jwt_user_id = null) {
         try {
-            // Check if cart exists
-            $cart = $this->cart->getById($id);
+            // Check if cart exists and belongs to JWT user when provided
+            if ($jwt_user_id !== null) {
+                $cart = $this->cart->getByIdAndUserId($id, $jwt_user_id);
+            } else {
+                $cart = $this->cart->getById($id);
+            }
             if (!$cart) {
                 return [
                     'status' => false,
