@@ -23,6 +23,12 @@ class PaymentController {
                     ];
                 }
                 $payments = [$payment];
+            } else if (isset($params['order_id']) && isset($params['user_id'])) {
+                $payments = $this->payment->getByOrderIdAndUser($params['order_id'], $params['user_id']);
+            } else if (isset($params['status']) && isset($params['user_id'])) {
+                $payments = $this->payment->getByStatusAndUser($params['status'], $params['user_id']);
+            } else if (isset($params['user_id'])) {
+                $payments = $this->payment->getByUserId($params['user_id']);
             } else if (isset($params['order_id'])) {
                 $payments = $this->payment->getByOrderId($params['order_id']);
             } else if (isset($params['status'])) {

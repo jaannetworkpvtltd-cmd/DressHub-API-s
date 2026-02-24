@@ -73,53 +73,116 @@ function verifyToken() {
 // Route handling
 switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
-        verifyToken();
-        
+        $decoded = verifyToken();
+
         $params = [];
         if ($id) {
             $params['id'] = $id;
-        } else if ($order_id) {
+        }
+        if ($order_id) {
             $params['order_id'] = $order_id;
-        } else if ($status) {
+        }
+        if ($status) {
             $params['status'] = $status;
         }
-        
+
+        // If user is not admin, restrict to their own payments
+        $isAdmin = (isset($decoded['role']) && strtolower($decoded['role']) === 'admin');
+        if (!$isAdmin) {
+            // If requesting an id, ensure ownership after fetch; for lists, add user_id filter
+            if (!isset($params['id'])) {
+                $params['user_id'] = $decoded['user_id'];
+            }
+        }
+
         $result = $paymentController->getPayments($params);
+
+        // If non-admin requested by id, verify ownership
+        if (isset($params['id']) && !$isAdmin) {
+            if ($result['status'] && isset($result['data'][0])) {
+                $payment = $result['data'][0];
+                if (isset($payment['user_id']) && $payment['user_id'] != $decoded['user_id']) {
+                    http_response_code(403);
+                    echo json_encode(['status' => false, 'message' => 'Forbidden']);
+                    break;
+                }
+            }
+        }
+
         http_response_code($result['code']);
         echo json_encode($result);
         break;
 
     case 'POST':
-        verifyToken();
-        
+        $decoded = verifyToken();
+
+        if (is_array($decoded) && isset($decoded['user_id'])) {
+            $input['user_id'] = $decoded['user_id'];
+        }
+
         $result = $paymentController->createPayment($input);
         http_response_code($result['code']);
         echo json_encode($result);
         break;
 
     case 'PUT':
-        verifyToken();
-        
+        $decoded = verifyToken();
+
         if (!$id) {
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Payment ID is required for update']);
             exit();
         }
-        
+
+        // Only admin or owner can update
+        $existing = $paymentController->getPayments(['id' => $id]);
+        if (!($existing['status'] && isset($existing['data'][0]))) {
+            http_response_code(404);
+            echo json_encode(['status' => false, 'message' => 'Payment not found']);
+            break;
+        }
+        $payment = $existing['data'][0];
+        $isAdmin = (isset($decoded['role']) && strtolower($decoded['role']) === 'admin');
+        if (!$isAdmin && (!isset($payment['user_id']) || $payment['user_id'] != $decoded['user_id'])) {
+            http_response_code(403);
+            echo json_encode(['status' => false, 'message' => 'Forbidden']);
+            break;
+        }
+
+        // Prevent non-admins from changing user_id
+        if (!$isAdmin && isset($input['user_id'])) {
+            unset($input['user_id']);
+        }
+
         $result = $paymentController->updatePayment($id, $input);
         http_response_code($result['code']);
         echo json_encode($result);
         break;
 
     case 'DELETE':
-        verifyToken();
-        
+        $decoded = verifyToken();
+
         if (!$id) {
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Payment ID is required for delete']);
             exit();
         }
-        
+
+        // Only admin or owner can delete
+        $existing = $paymentController->getPayments(['id' => $id]);
+        if (!($existing['status'] && isset($existing['data'][0]))) {
+            http_response_code(404);
+            echo json_encode(['status' => false, 'message' => 'Payment not found']);
+            break;
+        }
+        $payment = $existing['data'][0];
+        $isAdmin = (isset($decoded['role']) && strtolower($decoded['role']) === 'admin');
+        if (!$isAdmin && (!isset($payment['user_id']) || $payment['user_id'] != $decoded['user_id'])) {
+            http_response_code(403);
+            echo json_encode(['status' => false, 'message' => 'Forbidden']);
+            break;
+        }
+
         $result = $paymentController->deletePayment($id);
         http_response_code($result['code']);
         echo json_encode($result);
