@@ -15,6 +15,32 @@ class Payment {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getByUserId($user_id) {
+        $query = "SELECT * FROM " . $this->table . " WHERE user_id = :user_id ORDER BY created_at DESC";
+        $stmt = $this->db->prepare($query);
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getByOrderIdAndUser($order_id, $user_id) {
+        $query = "SELECT * FROM " . $this->table . " WHERE order_id = :order_id AND user_id = :user_id ORDER BY created_at DESC";
+        $stmt = $this->db->prepare($query);
+        $stmt->bindParam(':order_id', $order_id);
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getByStatusAndUser($status, $user_id) {
+        $query = "SELECT * FROM " . $this->table . " WHERE payment_status = :status AND user_id = :user_id ORDER BY created_at DESC";
+        $stmt = $this->db->prepare($query);
+        $stmt->bindParam(':status', $status);
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function getById($id) {
         $query = "SELECT * FROM " . $this->table . " WHERE id = :id";
         $stmt = $this->db->prepare($query);
@@ -41,19 +67,21 @@ class Payment {
 
     public function create($data) {
         $query = "INSERT INTO " . $this->table . " 
-                  (order_id, payment_method, payment_status, amount, paid_at) 
+                  (order_id, user_id, payment_method, payment_status, amount, paid_at) 
                   VALUES 
-                  (:order_id, :payment_method, :payment_status, :amount, :paid_at)";
+                  (:order_id, :user_id, :payment_method, :payment_status, :amount, :paid_at)";
 
         $stmt = $this->db->prepare($query);
 
         $order_id = isset($data['order_id']) ? $data['order_id'] : null;
+        $user_id = isset($data['user_id']) ? $data['user_id'] : null;
         $payment_method = isset($data['payment_method']) ? $data['payment_method'] : null;
         $payment_status = isset($data['payment_status']) ? $data['payment_status'] : 'pending';
         $amount = isset($data['amount']) ? $data['amount'] : null;
         $paid_at = isset($data['paid_at']) ? $data['paid_at'] : null;
 
         $stmt->bindParam(':order_id', $order_id);
+        $stmt->bindParam(':user_id', $user_id);
         $stmt->bindParam(':payment_method', $payment_method);
         $stmt->bindParam(':payment_status', $payment_status);
         $stmt->bindParam(':amount', $amount);
@@ -68,6 +96,10 @@ class Payment {
     public function update($id, $data) {
         $query = "UPDATE " . $this->table . " SET ";
         $fields = [];
+
+        if (isset($data['user_id'])) {
+            $fields[] = "user_id = :user_id";
+        }
 
         if (isset($data['payment_method'])) {
             $fields[] = "payment_method = :payment_method";
@@ -93,6 +125,9 @@ class Payment {
 
         if (isset($data['payment_method'])) {
             $stmt->bindParam(':payment_method', $data['payment_method']);
+        }
+        if (isset($data['user_id'])) {
+            $stmt->bindParam(':user_id', $data['user_id']);
         }
         if (isset($data['payment_status'])) {
             $stmt->bindParam(':payment_status', $data['payment_status']);
